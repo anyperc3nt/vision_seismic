@@ -107,7 +107,7 @@ def model_generator(num):
         else:
             rho_model[model == i + 1] = 4.8
     print(num_layers)
-    rho_model.astype(np.float64).tofile(f'rho_{num}.bin')
+    rho_model.astype(np.float64).tofile(f'./dataset/configs/config_{num}/rho_{num}.bin')
     save_distribution(rho_model, 'rho', f'./dataset/models/model_{num}/rho.png')
 
     # Распределение vp
@@ -117,7 +117,7 @@ def model_generator(num):
             vp_model[model == i + 1] = vp[i]
         else:
             vp_model[model == i + 1] = 4.6
-    vp_model.astype(np.float64).tofile(f'vp_{num}.bin')
+    vp_model.astype(np.float64).tofile(f'./dataset/configs/config_{num}/vp_{num}.bin')
     save_distribution(vp_model, 'Vp', f'./dataset/models/model_{num}/vp.png')
 
     # Распределение vs
@@ -127,10 +127,12 @@ def model_generator(num):
             vs_model[model == i + 1] = vs[i]
         else:
             vs_model[model == i + 1] = 2.0 + ((vs[-1] - np.average(vs)) / (vp_max / delimiter))
-    vs_model.astype(np.float64).tofile(f'vs_{num}.bin')
+    vs_model.astype(np.float64).tofile(f'./dataset/configs/config_{num}/vs_{num}.bin')
     save_distribution(vs_model, 'Vs', f'./dataset/models/model_{num}/vs.png')
 
 def config_generator(num1, num2):
+    if not os.path.exists(f'./dataset/seismograms/seismogram_{num1}'):
+        os.makedirs(f'./dataset/seismograms/sesimogram_{num1}')
     x_coord = 2500 * num2
     config = f'''
 
@@ -199,7 +201,7 @@ def config_generator(num1, num2):
                         compression = 1.0
                         axis = 1
                         eps = 2
-                        save = source_{num1}_{num2}.vtk
+                        save = ../../seismograms/sesimogram_{num1}/source_{num1}_{num2}.vtk
                         gauss_w = 5
                         [impulse]
                             name = FileInterpolationImpulse
@@ -244,14 +246,14 @@ def config_generator(num1, num2):
         [savers]
             [saver]
                 name = RectGridPointSaver
-                path = seismogramm_{num1}_{num2}.txt
+                path = ../../seismograms/sesimogram_{num1}/seismogramm_{num1}_{num2}.txt
                 order = 1
                 # save = 100
                 save = 100
                 params = vx, vy
                 norms = 0, 0
-                save_receivers_vtk = receivers_{num1}_{num2}.vtk
-                save_receivers_txt = receivers_{num1}_{num2}.txt
+                save_receivers_vtk = ../../seismograms/sesimogram_{num1}/receivers_{num1}_{num2}.vtk
+                save_receivers_txt = ../../seismograms/sesimogram_{num1}/receivers_{num1}_{num2}.txt
             [/saver]
         [/savers]
         '''
