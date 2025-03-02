@@ -7,22 +7,22 @@ import os
 
 def model_generator(num):
     def ragged_line(x):
-        return math.sin(x/100) 
+        return math.sin(x/10) 
 
     if not os.path.exists(f'./dataset/models/model_{num}'):
-        os.makedirs(f'./dataset/models/model_{num}')
+        os.makedirs(f'./dataset/models/model_{num}', exist_ok=True)
 
     if not os.path.exists(f'./dataset/configs/config_{num}'):
-        os.makedirs(f'./dataset/configs/config_{num}')
+        os.makedirs(f'./dataset/configs/config_{num}', exist_ok=True)
 
     # Параметры модели
-    x_size, y_size = 5000, 2000  # Размеры модели (длина и глубина)
-    H = 2000  # Глубина в метрах
+    x_size, y_size = 500, 200  # Размеры модели (длина и глубина)
+    H = 200  # Глубина в метрах
     num_layers = np.random.randint(3, 11)  # Случайное количество слоев
 
     # Диапазоны параметров слоев
-    rho_min, rho_max = 2.0, 5.0  # г/см^3
-    vp_min, vp_max = 2.2, 5.0  # км/с
+    rho_min, rho_max = 2000.0, 5000.0 
+    vp_min, vp_max = 2200.0, 5000.0  # км/с
     delimiter = np.random.uniform(2.0, 3.0)
     multiplicator = np.random.uniform(1.1, 1.15)
 
@@ -53,16 +53,16 @@ def model_generator(num):
 
         for x in range(x_size):     
             if start == 0:
-                model[x, start: int(end + 30 * ragged_line(x + 2))] = i + 1
+                model[x, start: int(end + 3 * ragged_line(x + 2))] = i + 1
             elif num_layers - 1 == i:
-                model[x, int(start + 30 * ragged_line(x)):] = i + 1
+                model[x, int(start + 3 * ragged_line(x + 2)):] = i + 1
             else:      
-                model[x, int(start + 30 * ragged_line(x)): int(end + 30 * ragged_line(x + 2))] = i + 1
+                model[x, int(start + 3 * ragged_line(x + 2)): int(end + 3 * ragged_line(x + 2))] = i + 1
 
     # Добавление аномалий
     if anomaly_type == "ellipse":
-        cx, cy = np.random.randint(1000, 3500), np.random.randint(200, 1500) 
-        rx, ry = np.random.randint(50, 500), np.random.randint(60, 200) 
+        cx, cy = np.random.randint(100, 350), np.random.randint(20, 150) 
+        rx, ry = np.random.randint(5, 50), np.random.randint(6, 20) 
 
         for x in range(x_size):
             for y in range(y_size):
@@ -70,25 +70,24 @@ def model_generator(num):
                     model[x, y] = num_layers + 1
 
     elif anomaly_type == "mountain":
-        x_points = np.linspace(2000, 3000, num=4)
-        y_points = np.random.uniform(0, 500, size=4)
+        x_points = np.linspace(200, 300, num=4)
+        y_points = np.random.uniform(0, 50, size=4)
         y_points[0], y_points[-1] = 0, 0
         spline = CubicSpline(x_points, y_points)
 
         for x in range(x_size):
-            y_top = int(spline(x)) if 2000 <= x < 3000 else 0
+            y_top = int(spline(x)) if 200 <= x < 300 else 0
             model[x, int(y_size - y_top):] = num_layers + 1
 
     elif anomaly_type == "distorted_layers":
-        x_points = np.linspace(0, 5000, num=3)
-        y_points = np.random.uniform(5, 1000, size=3)
-        y_points[0], y_points[-1] = 0, 1500
+        x_points = np.linspace(0, 500, num=3)
+        y_points = np.random.uniform(5, 100, size=3)
+        y_points[0], y_points[-1] = 0, 150
         spline = CubicSpline(x_points, y_points)
 
         for x in range(x_size):
-            y_top = int(spline(x) + x / 500) if x >= x_points[0] else 0
-            model[x, int((y_size - y_top) + ragged_line(x)):] = num_layers + 1
-    
+            y_top = int(spline(x) + x / 50) if x >= x_points[0] else 0
+            model[x, int((y_size - y_top) + 3 * ragged_line(x + 2)):] = num_layers + 1
     else:
         pass
 
@@ -105,9 +104,9 @@ def model_generator(num):
         if i < len(rho):
             rho_model[model == i + 1] = rho[i]
         else:
-            rho_model[model == i + 1] = 4.8
+            rho_model[model == i + 1] = 4800.0
     print(num_layers)
-    rho_model.astype(np.float64).tofile(f'./dataset/configs/config_{num}/rho_{num}.bin')
+    rho_model.astype('f').tofile(f'./dataset/configs/config_{num}/rho_{num}.bin')
     save_distribution(rho_model, 'rho', f'./dataset/models/model_{num}/rho.png')
 
     # Распределение vp
@@ -116,8 +115,8 @@ def model_generator(num):
         if i < len(vp):
             vp_model[model == i + 1] = vp[i]
         else:
-            vp_model[model == i + 1] = 4.6
-    vp_model.astype(np.float64).tofile(f'./dataset/configs/config_{num}/vp_{num}.bin')
+            vp_model[model == i + 1] = 4600.0
+    vp_model.astype('f').tofile(f'./dataset/configs/config_{num}/vp_{num}.bin')
     save_distribution(vp_model, 'Vp', f'./dataset/models/model_{num}/vp.png')
 
     # Распределение vs
@@ -126,19 +125,20 @@ def model_generator(num):
         if i < len(vs):
             vs_model[model == i + 1] = vs[i]
         else:
-            vs_model[model == i + 1] = 2.0 + ((vs[-1] - np.average(vs)) / (vp_max / delimiter))
-    vs_model.astype(np.float64).tofile(f'./dataset/configs/config_{num}/vs_{num}.bin')
+            vs_model[model == i + 1] = 2000.0 + ((vs[-1] - np.average(vs)) / (vp_max / delimiter))
+    vs_model.astype('f').tofile(f'./dataset/configs/config_{num}/vs_{num}.bin')
     save_distribution(vs_model, 'Vs', f'./dataset/models/model_{num}/vs.png')
 
 def config_generator(num1, num2):
     if not os.path.exists(f'./dataset/seismograms/seismogram_{num1}'):
-        os.makedirs(f'./dataset/seismograms/sesimogram_{num1}')
-    x_coord = 2500 * num2
+        os.makedirs(f'./dataset/seismograms/seismogram_{num1}', exist_ok=True)
+
+    x_coord = 10 + 240 * num2
     config = f'''
 
         verbose = true
 
-        dt = 0.0002
+        dt = 0.00002
 
         steps = 5000
 
@@ -197,7 +197,7 @@ def config_generator(num1, num2):
 
                     [corrector]
                         name = PointSourceCorrector2D
-                        coords = {x_coord}, 100, 0.0
+                        coords = {x_coord}, 10, 0.0
                         compression = 1.0
                         axis = 1
                         eps = 2
@@ -245,24 +245,21 @@ def config_generator(num1, num2):
 
         [savers]
             [saver]
-                name = RectGridPointSaver
-                path = ../../seismograms/sesimogram_{num1}/seismogramm_{num1}_{num2}.txt
+                name = StructuredVTKSaver
+                path = ../../seismograms/sesimogram_{num1}/seismogramm_{num1}_{num2}.vtk
                 order = 1
-                # save = 100
-                save = 100
+                save = 1
                 params = vx, vy
                 norms = 0, 0
-                save_receivers_vtk = ../../seismograms/sesimogram_{num1}/receivers_{num1}_{num2}.vtk
-                save_receivers_txt = ../../seismograms/sesimogram_{num1}/receivers_{num1}_{num2}.txt
             [/saver]
         [/savers]
         '''
-    with open(f'./dataset/configs/config_{num1}/config_{num1}_{num2}.txt', 'w') as f:
-            f.save(config)
+    with open(f'./dataset/configs/config_{num1}/config_{num1}_{num2}.conf', 'w') as f:
+            f.write(config)
 
 
 if __name__ == "__main__":
-    for i in range(10):
+    for i in range(1):
         model_generator(i)
         for j in range(3):
             config_generator(i, j)
