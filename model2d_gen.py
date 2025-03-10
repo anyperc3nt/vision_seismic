@@ -106,7 +106,8 @@ def model_generator(num):
         else:
             rho_model[model == i + 1] = 4800.0
     print(num_layers)
-    rho_model.astype('f').tofile(f'./dataset/configs/config_{num}/rho_{num}.bin')
+    rho_model_s = np.flip(rho_model.T, axis=0)
+    rho_model_s.astype('f').tofile(f'./dataset/configs/config_{num}/rho_{num}.bin')
     save_distribution(rho_model, 'rho', f'./dataset/models/model_{num}/rho.png')
 
     # Распределение vp
@@ -116,7 +117,8 @@ def model_generator(num):
             vp_model[model == i + 1] = vp[i]
         else:
             vp_model[model == i + 1] = 4600.0
-    vp_model.astype('f').tofile(f'./dataset/configs/config_{num}/vp_{num}.bin')
+    vp_model_s = np.flip(vp_model.T, axis=0)
+    vp_model_s.astype('f').tofile(f'./dataset/configs/config_{num}/vp_{num}.bin')
     save_distribution(vp_model, 'Vp', f'./dataset/models/model_{num}/vp.png')
 
     # Распределение vs
@@ -126,7 +128,8 @@ def model_generator(num):
             vs_model[model == i + 1] = vs[i]
         else:
             vs_model[model == i + 1] = 2000.0 + ((vs[-1] - np.average(vs)) / (vp_max / delimiter))
-    vs_model.astype('f').tofile(f'./dataset/configs/config_{num}/vs_{num}.bin')
+    vs_model_s = np.flip(vs_model.T, axis=0)
+    vs_model_s.astype('f').tofile(f'./dataset/configs/config_{num}/vs_{num}.bin')
     save_distribution(vs_model, 'Vs', f'./dataset/models/model_{num}/vs.png')
 
 def config_generator(num1, num2):
@@ -246,7 +249,7 @@ def config_generator(num1, num2):
         [savers]
             [saver]
                 name = StructuredVTKSaver
-                path = ../../seismograms/sesimogram_{num1}/seismogramm_{num1}_{num2}.vtk
+                path = ../../seismograms/seismogram_{num1}/seismogramm_{num1}_{num2}/%g_%s.vtk
                 order = 1
                 save = 1
                 params = vx, vy
