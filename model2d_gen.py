@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, interp1d
 import math
 import os
 
 
 def model_generator(num):
     def ragged_line(x):
-        return math.sin(x/10) 
+        return ((math.sin((x / 10  * (math.pi / 4))) + math.cos((x / np.random.uniform(10.0, 12.0)  * (math.pi / 4)))) / 2) * np.random.uniform(2.0, 3.0)
 
     if not os.path.exists(f'./dataset/models/model_{num}'):
         os.makedirs(f'./dataset/models/model_{num}', exist_ok=True)
@@ -49,15 +49,15 @@ def model_generator(num):
 
     for i in range(num_layers):
         start = layer_depths[i - 1] if i > 0 else 0
-        end = layer_depths[i]
+        # end = layer_depths[i]
 
         for x in range(x_size):     
             if start == 0:
-                model[x, start: int(end + 3 * ragged_line(x + 2))] = i + 1
-            elif num_layers - 1 == i:
-                model[x, int(start + 3 * ragged_line(x + 2)):] = i + 1
+                model[x, :] = i + 1
+            # elif num_layers - 1 == i:
+            #     model[x, int(start + ragged_line(x)):] = i + 1
             else:      
-                model[x, int(start + 3 * ragged_line(x + 2)): int(end + 3 * ragged_line(x + 2))] = i + 1
+                 model[x, int(start + ragged_line(x)):] = i + 1
 
     # Добавление аномалий
     if anomaly_type == "ellipse":
@@ -213,7 +213,7 @@ def config_generator(num1, num2):
                             name = FileInterpolationImpulse
                             [interpolator]
                                 name = PiceWiceInterpolator1D
-                                file = ricker_30.txt
+                                file = ./dataset/ricker_30.txt
                             [/interpolator]
                         [/impulse]
                     [/corrector]
@@ -251,11 +251,14 @@ def config_generator(num1, num2):
 
         [savers]
             [saver]
-                name = StructuredVTKSaver
-                path = ../../seismograms/seismogram_{num1}/seismogram_{num1}_{num2}/%g_%s.vtk
+                name = RectGridPointSaver
+                path = ../../seismograms/seismogram_{num1}/seismogram_{num1}_{num2}/seismogram.txt
+                params = vx, vy
                 order = 1
                 save = 1
-                params = vx, vy
+                start = 16, -100
+                step = 16, 0.0
+                num = 312
                 norms = 0, 0
             [/saver]
         [/savers]
