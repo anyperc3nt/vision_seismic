@@ -16,7 +16,7 @@ def model_generator(num):
         os.makedirs(f'./dataset/configs/config_{num}', exist_ok=True)
 
     # Параметры модели
-    x_size, y_size = 500, 200  # Размеры модели (длина и глубина)
+    x_size, y_size = 501, 201  # Размеры модели (длина и глубина)
     H = 200  # Глубина в метрах
     num_layers = np.random.randint(3, 11)  # Случайное количество слоев
 
@@ -136,14 +136,17 @@ def config_generator(num1, num2):
     if not os.path.exists(f'./dataset/seismograms/seismogram_{num1}'):
         os.makedirs(f'./dataset/seismograms/seismogram_{num1}', exist_ok=True)
 
-    x_coord = 10 + 240 * num2
+    if not os.path.exists(f'./dataset/seismograms/seismogram_{num1}/seismogram_{num1}_{num2}'):
+        os.makedirs(f'./dataset/seismograms/seismogram_{num1}/seismogram_{num1}_{num2}', exist_ok=True)
+
+    x_coord = 100 + 2400 * num2
     config = f'''
 
         verbose = true
 
-        dt = 0.00002
+        dt = 0.0015
 
-        steps = 5000
+        steps = 2000
 
 
         [grids]
@@ -162,9 +165,9 @@ def config_generator(num1, num2):
                 [/material]
                 [factory]
                     name = RectGridFactory
-                    size = 500, 200
-                    origin = 0, 0
-                    spacing = 1.6, 1.6
+                    size = 501, 201
+                    origin = 0, -2000
+                    spacing = 10, 10
                 [/factory]
                 [schema]
                     name = ElasticMatRectSchema2DRusanov3
@@ -200,11 +203,11 @@ def config_generator(num1, num2):
 
                     [corrector]
                         name = PointSourceCorrector2D
-                        coords = {x_coord}, 10, 0.0
+                        coords = {x_coord}, -100, 0.0
                         compression = 1.0
                         axis = 1
                         eps = 2
-                        save = ../../seismograms/sesimogram_{num1}/source_{num1}_{num2}.vtk
+                        save = ../../seismograms/seismogram_{num1}/source_{num1}_{num2}.vtk
                         gauss_w = 5
                         [impulse]
                             name = FileInterpolationImpulse
@@ -249,7 +252,7 @@ def config_generator(num1, num2):
         [savers]
             [saver]
                 name = StructuredVTKSaver
-                path = ../../seismograms/seismogram_{num1}/seismogramm_{num1}_{num2}/%g_%s.vtk
+                path = ../../seismograms/seismogram_{num1}/seismogram_{num1}_{num2}/%g_%s.vtk
                 order = 1
                 save = 1
                 params = vx, vy
