@@ -213,7 +213,7 @@ def config_generator(num1, num2):
                             name = FileInterpolationImpulse
                             [interpolator]
                                 name = PiceWiceInterpolator1D
-                                file = ./dataset/ricker_30.txt
+                                file = ../../../ricker_30.txt
                             [/interpolator]
                         [/impulse]
                     [/corrector]
@@ -268,7 +268,7 @@ def config_generator(num1, num2):
 
 
 if __name__ == "__main__":
-    for i in range(1):
+    for i in range(1000):
         model_generator(i)
         for j in range(3):
             config_generator(i, j)

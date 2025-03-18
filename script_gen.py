@@ -6,9 +6,8 @@ def script_generator():
     configs_dir = os.path.join(dataset_dir, "configs")
     models_dir = os.path.join(dataset_dir, "models")
 
-    slurm_header = """
-#!/bin/sh
-#SBATCH -D /s/ls4/users/khokhlov/model_gen_3d
+    slurm_header = """#!/bin/sh
+#SBATCH -D /s/ls4/users/khokhlov/model_2d_03_2025
 #SBATCH -o %j.out
 #SBATCH -e %j.err
 #SBATCH -t 48:10:00
@@ -32,7 +31,7 @@ module load gcc/default
         
         config_files = sorted(f for f in os.listdir(config_group_path) if f.endswith(".conf"))
         for config_file in config_files:
-            script_lines.append(f"./rect {os.path.join(config_group, config_file)}")
+            script_lines.append(f"srun /s/ls4/users/khokhlov/rect/build/rect {config_file}")
         
         script_lines.append("cd ..\n")
     
