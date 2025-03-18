@@ -1,10 +1,15 @@
 import os
 import numpy as np
 
+batchsize = 100
+
 def script_generator():
     dataset_dir = "dataset"
     configs_dir = os.path.join(dataset_dir, "configs")
     models_dir = os.path.join(dataset_dir, "models")
+
+    if not os.path.exists(f"./scripts"):
+        os.makedirs(f"./scripts", exist_ok=True)
 
     slurm_header = """#!/bin/sh
 #SBATCH -D /s/ls4/users/khokhlov/model_2d_03_2025
@@ -24,6 +29,8 @@ module load gcc/default
     """
     
     script_lines = [slurm_header, f"\ncd {configs_dir}\n"]
+    i = 0
+    j = 0
 
     for config_group in sorted(os.listdir(configs_dir)):
         config_group_path = os.path.join(configs_dir, config_group)
@@ -35,8 +42,13 @@ module load gcc/default
         
         script_lines.append("cd ..\n")
     
-    with open("run_compute.sh", "w") as script_file:
-        script_file.write("\n".join(script_lines))
+        j += 1
+        if j == batchsize:
+            j = 0
+            i += 1
+            with open(f'{"scripts/run_compute"}{i}{".sh"}', "w") as script_file:
+                script_file.write("\n".join(script_lines))
+            script_lines = [slurm_header, f"\ncd {configs_dir}\n"]
 
 
 if __name__ == "__main__":
