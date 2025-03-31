@@ -4,6 +4,69 @@ from scipy.interpolate import CubicSpline, interp1d
 import math
 import os
 from perlin_noise import PerlinNoise
+import random
+
+# seed
+seed = int(np.random.SeedSequence().generate_state(1)[0])
+#seed = 676404499
+
+print(f"seed = {seed}")
+np.random.seed(seed)
+random.seed(seed)
+
+class Fault:
+    """
+    следующие параметры задают разлом::
+    x1, x2, y1, y2 : координаты начала и конца разлома
+    shift_distance : Величина сдвига разлома.
+    apply_above : {1, -1} - определяет, сдвигаться будет часть модели выше или ниже разлома.
+
+    вспомогательные параметры, вычисляются из заданных
+    dx, dy Горизонтальная и вертикальная составляющая сдвига.
+    """
+    x1: int
+    x2: int
+    y1: int
+    y2: int
+    dx: int
+    dy : int
+    apply_above: int
+    shift_distance: float
+
+    def __init__(self, shift_min: float, shift_max: float, padding):
+        """
+        shift_min, shift_max : минимум и максимум shift_distance.
+        padding : отступ для координат, связанный с тем, что модель размера x_size + 2*padding, y_size + 2*padding.
+        """
+        self.x1 = random.randint(0, 500) + padding
+        self.x2 = random.randint(0, 500) + padding
+        self.x2 += 1 * (self.x1==self.x2) #отбрасываем вертикальные прямые
+        self.y1 = 0 + padding
+        self.y2 = 200 + padding
+        self.apply_above = random.choice([1,-1])
+        self.shift_distance = (random.random() * 2 - 1) * ( (shift_max - shift_min) + shift_min )
+        self.dx = int(
+            self.shift_distance
+            * (self.x2 - self.x1)
+            / ((self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) ** 0.5
+        )
+        self.dy = int(
+            self.shift_distance
+            * (self.y2 - self.y1)
+            / ((self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) ** 0.5
+        )
+    
+    def dot_in_area(self, x, y):
+        """
+        Проверяет, находится ли точка (x, y) в области действия разлома
+        """
+        return (y - (x - self.x1) * (self.y2 - self.y1) / (self.x2 - self.x1) - self.y1) * self.apply_above > 0
+
+    def distance(self, x, y):
+        """
+        Вычисляет расстояние от точки (x, y) до линии разлома.       
+        """
+        return 1.0* np.abs((self.y2 - self.y1) * x - (self.x2 - self.x1) * y + self.x2 * self.y1 - self.y2 * self.x1) / ((self.x2 - self.x1) ** 2 + (self.y2 - self.y1) ** 2) ** 0.5
 
 
 def model_generator(num):
@@ -29,6 +92,23 @@ def model_generator(num):
     x_size, y_size = 501, 201  # Размеры модели (длина и глубина)
     H = 200  # Глубина в метрах
     num_layers = np.random.randint(3, 11)  # Случайное количество слоев
+    num_layers = 11
+
+    # Параметры фолтов
+    shift_min = 7
+    shift_max = 30
+    num_faults = 12#np.random.randint(1, 5) #Случайное количество фолтов
+
+    # Параметры отступа, связанные с генерацией фолтов
+    padding = num_faults * shift_max
+    x_size += padding * 2
+    y_size += padding * 2
+    """
+    чтобы избежать артефактов, связанных с тем, что при применении сдвига негде брать
+    информацию о значениях модели за краями массива, модель генерируется с "запасом",
+    равным padding с каждого края. затем, после применения всех разломов, модель
+    обрезается до необходимого размера
+    """
 
     # Диапазоны параметров слоев
     rho_min, rho_max = 2000.0, 5000.0
@@ -40,7 +120,7 @@ def model_generator(num):
     layer_thicknesses = np.random.uniform(
         0.7 * H / num_layers, 1.4 * H / num_layers, num_layers
     )
-    layer_depths = np.cumsum(layer_thicknesses).astype(int)
+    layer_depths = np.cumsum(layer_thicknesses).astype(int) + padding
     layer_depths[layer_depths >= y_size] = y_size - 1  # Ограничение по глубине
 
     rho = [np.random.uniform(rho_min, rho_min + 1.5)]
@@ -56,87 +136,84 @@ def model_generator(num):
 
     # Создание 2D модели
     model = np.zeros((x_size, y_size))
-    anomaly_type = "fault"
-    print(anomaly_type)
+    print(f"num_faults: {num_faults}")
 
     for i in range(num_layers):
         start = layer_depths[i - 1] if i > 0 else 0
         # end = layer_depths[i]
-
         for x in range(x_size):
             if start == 0:
                 model[x, :] = i + 1
             # elif num_layers - 1 == i:
-            #     model[x, int(start + ragged_line(x)):] = i + 1
+            #     model[x, int(start + ragged_line(x-padding)):] = i + 1
             else:
-                model[x, int(start + ragged_line(x)) :] = i + 1
+                model[x, int(start + ragged_line(x-padding)) :] = i + 1
+    
+    # Далее часть, связанная с разломами
+    # Меш для вычисления булевых масок
+    x_mesh, y_mesh = np.meshgrid(np.arange(x_size), np.arange(y_size), indexing='ij')
+    # Массив для хранения булевых масок
+    mask = np.zeros_like(model)
+    # Модель на которой отображаются только разломы
+    model_faults = np.zeros((x_size, y_size))
 
-    # Добавление аномалий
-    if anomaly_type == "ellipse":
-        cx, cy = np.random.randint(100, 350), np.random.randint(20, 150)
-        rx, ry = np.random.randint(5, 50), np.random.randint(6, 20)
+    def apply_fault(f: Fault, model, mask):
+        """
+        применяет действие разлома на массив model
+        mask - массив для хранения булевых масок, передается чтобы не тратить время на создание каждый раз
+        """
+        pad = max(np.abs(f.dx), np.abs(f.dy))
+        model_padded = np.pad(model, pad_width=pad, mode="edge")
+        # Вычисляем булеву маску для всей области
+        mask = f.dot_in_area(x_mesh,y_mesh)
+        model[mask] = model_padded[x_mesh[mask] + pad - f.dx, y_mesh[mask] + pad - f.dy]
+        return model
 
-        for x in range(x_size):
-            for y in range(y_size):
-                if ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1:
-                    model[x, y] = num_layers + 1
+    def draw_fault(f: Fault, model, mask):
+        """
+        рисует контур разлома на model
+        mask - массив для хранения булевых масок, передается чтобы не тратить время на создание каждый раз
+        """
+        mask = f.distance(x_mesh,y_mesh) < 1.5
+        model[mask] = num_layers + 5
+        return model
+    
+    # Создание и применение разломов
+    if True:
+        plt.figure(figsize=(30, 15))
+        faults = [Fault(shift_min, shift_max, padding) for i in range(num_faults)]
+        
+        for i, fault in enumerate(faults):
+            print(f"вверху/внизу: {fault.apply_above}, модуль: {round(fault.shift_distance,3)}, dx: {fault.dx}, dy: {fault.dy}")
+            model = apply_fault(fault, model, mask)
+            model = draw_fault(fault, model, mask)
+            model_faults = apply_fault(fault, model_faults, mask)
+            model_faults = draw_fault(fault, model_faults, mask)
+            plt.subplot(int(np.ceil(num_faults**0.5)), int(np.ceil(num_faults**0.5)), i + 1)
+            plt.title(f"fault{i+1}")
+            plt.imshow(model[padding : model.shape[0] - padding, padding : model.shape[1] - padding].T)
+        plt.axis("off")
+        plt.savefig(f"./dataset/models/model_{num}/fault_log.png",bbox_inches="tight",pad_inches=0)
+    
+    print(f"средний сдвиг по y: {round(np.mean([faults[i].dy for i in range(num_faults)]),3)}")
+    print(f"средний сдвиг по x: {round(np.mean([faults[i].dx for i in range(num_faults)]),3)}")
+    print(f"средний модуль сдвига: {round(np.mean([faults[i].shift_distance for i in range(num_faults)]),3)}")
 
-    elif anomaly_type == "mountain":
-        x_points = np.linspace(200, 300, num=4)
-        y_points = np.random.uniform(0, 50, size=4)
-        y_points[0], y_points[-1] = 0, 0
-        spline = CubicSpline(x_points, y_points)
+    #Обрезка модели
+    model = np.copy(model[padding : model.shape[0] - padding, padding : model.shape[1] - padding])
+    model_faults = np.copy(model_faults[padding : model_faults.shape[0] - padding, padding : model_faults.shape[1] - padding])
 
-        for x in range(x_size):
-            y_top = int(spline(x)) if 200 <= x < 300 else 0
-            model[x, int(y_size - y_top) :] = num_layers + 1
-
-    elif anomaly_type == "distorted_layers":
-        x_points = np.linspace(0, 500, num=3)
-        y_points = np.random.uniform(5, 100, size=3)
-        y_points[0], y_points[-1] = 0, 150
-        spline = CubicSpline(x_points, y_points)
-
-        for x in range(x_size):
-            y_top = int(spline(x) + x / 50) if x >= x_points[0] else 0
-            model[x, int((y_size - y_top) + 3 * ragged_line(x + 2)) :] = num_layers + 1
-
-    elif anomaly_type == "fault":
-        dx = int(np.random.uniform(3, 10)) * (2 * np.random.randint(0, 2) - 1)
-        dy = int(np.random.uniform(3, 20))
-        k = 1.0 * dy / dx
-        x0 = int(np.random.uniform(100, 400))
-
-        model_copy = np.copy(model)
-        fault_mask = np.zeros((x_size, y_size))
-        for x in range(0, x_size):
-            for y in range(0, dy):
-                if y < k * (x - x0):
-                    model[x, y] = 1
-            for y in range(dy, y_size):
-                if y < k * (x - x0):
-                    model[x, y] = model_copy[x - dx, y - dy]
-            for y in range(0, y_size):
-                if y == int(k * (x - x0)):
-                    fault_mask[x, y] = num_layers + 1
-                distance = 1.5 - np.abs(k*(x0 - x) + y) / (k**2 + 1) ** 0.5
-                if distance > 0:
-                    fault_mask[x, y] = distance**0.7
-    else:
-        pass
+    plt.figure(figsize=(8, 6))
+    plt.imshow(model_faults.T, cmap="Greys", interpolation="nearest")
+    plt.axis("off")
+    plt.savefig(f"./dataset/models/model_{num}/fault_mask.png",bbox_inches="tight",pad_inches=0)
+    plt.close()
 
     # Визуализация распределений rho, vp и vs
     def save_distribution(data, title, filename):
         plt.figure(figsize=(8, 6))
         plt.imshow(data.T, cmap="viridis", norm="log")
-        plt.axis("off")  # Убираем оси
-        plt.savefig(filename, bbox_inches="tight", pad_inches=0)
-        plt.close()
-
-    def save_mask(data, title, filename):
-        plt.figure(figsize=(8, 6))
-        plt.imshow(data.T, cmap="Greys", interpolation="nearest")
-        plt.axis("off")  # Убираем оси
+        plt.axis("off")
         plt.savefig(filename, bbox_inches="tight", pad_inches=0)
         plt.close()
 
@@ -147,7 +224,6 @@ def model_generator(num):
             rho_model[model == i + 1] = rho[i]
         else:
             rho_model[model == i + 1] = 4800.0
-    print(num_layers)
     rho_model_s = np.flip(rho_model.T, axis=0)
     rho_model_s.astype("f").tofile(f"./dataset/configs/config_{num}/rho_{num}.bin")
     save_distribution(rho_model, "rho", f"./dataset/models/model_{num}/rho.png")
@@ -176,16 +252,18 @@ def model_generator(num):
     vs_model_s.astype("f").tofile(f"./dataset/configs/config_{num}/vs_{num}.bin")
     save_distribution(vs_model, "Vs", f"./dataset/models/model_{num}/vs.png")
 
-    # Маска фолтов
-    save_mask(fault_mask, "fault", f"./dataset/models/model_{num}/fault_mask.png")
-
 
 def config_generator(num1, num2):
     if not os.path.exists(f"./dataset/seismograms/seismogram_{num1}"):
         os.makedirs(f"./dataset/seismograms/seismogram_{num1}", exist_ok=True)
 
-    if not os.path.exists(f"./dataset/seismograms/seismogram_{num1}/seismogram_{num1}_{num2}"):
-        os.makedirs(f"./dataset/seismograms/seismogram_{num1}/seismogram_{num1}_{num2}",exist_ok=True,)
+    if not os.path.exists(
+        f"./dataset/seismograms/seismogram_{num1}/seismogram_{num1}_{num2}"
+    ):
+        os.makedirs(
+            f"./dataset/seismograms/seismogram_{num1}/seismogram_{num1}_{num2}",
+            exist_ok=True,
+        )
 
     x_coord = 100 + 2400 * num2
     config = f"""
