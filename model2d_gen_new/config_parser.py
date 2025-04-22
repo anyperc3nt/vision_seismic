@@ -13,6 +13,7 @@ from layer_functions import ragged_line, perlin_line, zero_line
 from faults import FaultsGenerator
 from anomalies import LayersGenerator
 from physical import PhysicalModelBuilder
+from typing import Union, List
 
 
 class ConfigParser:
@@ -39,7 +40,7 @@ class ConfigParser:
             buffer = 0
         return GeoModel(y_size=y_size, x_size=x_size, buffer=buffer)
 
-    def create_layers_generator(self, model: GeoModel) -> LayersGenerator | None:
+    def create_layers_generator(self, model: GeoModel) -> Union[LayersGenerator, None]:
         layers_cfg = self.config.get("layers")
         if layers_cfg is None:
             return None
@@ -61,7 +62,7 @@ class ConfigParser:
             layer_thickness_range=tuple(layers_cfg["layer_thickness_range"]),
         )
 
-    def create_faults_generator(self) -> FaultsGenerator | None:
+    def create_faults_generator(self) -> Union[FaultsGenerator, None]:
         faults_cfg = self.config.get("faults")
         if faults_cfg is None:
             return None
@@ -74,11 +75,11 @@ class ConfigParser:
             angle_rad_range=tuple(np.pi * np.array(faults_cfg["angle_rad_range"])),
         )
 
-    def create_anomaly_selector(self) -> AnomalySelector | None:
+    def create_anomaly_selector(self) -> Union[AnomalySelector, None]:
         if not self.config.get("anomalies"):
             return None
 
-        generators: list[GeoStructureGenerator] = []
+        generators: List[GeoStructureGenerator] = []
 
         for anomaly_cfg in self.config["anomalies"]:
             type_ = anomaly_cfg["type"]

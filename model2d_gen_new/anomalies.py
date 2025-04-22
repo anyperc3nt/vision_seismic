@@ -4,6 +4,7 @@ from scipy.spatial import ConvexHull
 from matplotlib.path import Path
 from typing import Tuple
 import random
+from typing import List
 
 from model import GeoModel
 
@@ -32,7 +33,7 @@ class GeoStructureListGenerator:
     Абстрактный класс генератора списка геологических структур.
     """
 
-    def generate(self) -> list[GeoStructure]:
+    def generate(self) -> List[GeoStructure]:
         raise NotImplementedError
 
 
@@ -41,7 +42,7 @@ class AnomalySelector(GeoStructureGenerator):
     Случайным образом выбирает один генератор из списка и возвращает его результат.
     """
 
-    def __init__(self, generators: list[GeoStructureGenerator]):
+    def __init__(self, generators: List[GeoStructureGenerator]):
         self.generators = generators
 
     def generate(self) -> GeoStructure:

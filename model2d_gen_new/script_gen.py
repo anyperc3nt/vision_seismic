@@ -2,7 +2,7 @@ import os
 
 batchsize = 100
 slurm_header = """#!/bin/sh
-#SBATCH -D /s/ls4/users/khokhlov/model_2d_03_2025
+#SBATCH -D /s/ls4/users/khokhlov/model_2d_04_2025/model2d_gen_new
 #SBATCH -o %j.out
 #SBATCH -e %j.err
 #SBATCH -t 48:10:00
