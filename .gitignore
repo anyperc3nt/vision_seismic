@@ -1,0 +1,32 @@
+#===model2d_gen===
+
+dataset/
+scripts/
+
+
+
+#===python staff===
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+env/
+venv/
+.venv/
+ENV/
+.ENV/
+env.bak/
+venv3-9*/
+*.env/
+
+# VSCode settings
+.vscode/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Pytest cache
+.pytest_cache/
