@@ -1,26 +1,29 @@
 import os
 
-batchsize = 100
-slurm_header = """#!/bin/sh
-#SBATCH -D /s/ls4/users/khokhlov/model_2d_04_2025/model2d_gen_new
-#SBATCH -o %j.out
-#SBATCH -e %j.err
-#SBATCH -t 48:10:00
-#SBATCH -p hpc4-3d
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=24
+batchsize = 1700
+# slurm_header = """#!/bin/sh
+# #SBATCH -D /s/ls4/users/khokhlov/model_2d_04_2025/model2d_gen_new
+# #SBATCH -o %j.out
+# #SBATCH -e %j.err
+# #SBATCH -t 48:10:00
+# #SBATCH -p hpc4-3d
+# #SBATCH --ntasks=1
+# #SBATCH --cpus-per-task=24
 
-export LD_LIBRARY_PATH=/s/ls4/users/khokhlov/rect/lib/
-cd $SLURM_SUBMIT_DIR
+# export LD_LIBRARY_PATH=/s/ls4/users/khokhlov/rect/lib/
+# cd $SLURM_SUBMIT_DIR
 
-module load cmake/3.19.3
-module load openmpi/default
-module load gcc/default
-"""
-rect_path = "/s/ls4/users/khokhlov/rect/build/rect"
+# module load cmake/3.19.3
+# module load openmpi/default
+# module load gcc/default
+# """
+# rect_path = "/s/ls4/users/khokhlov/rect/build/rect"
 
 # slurm_header = ""
 # rect_path = "/home/alex-kuruts/my-dir/Nauch/rect_new/rect/build/rect"
+
+slurm_header = ""
+rect_path = "OMP_NUM_THREADS=12 /home/nik/agrelov/rect/build/rect"
 
 def write_script(script_lines, batch_idx):
     with open(f"scripts/run_compute{batch_idx}.sh", "w") as f:
