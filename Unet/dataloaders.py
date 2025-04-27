@@ -36,11 +36,12 @@ def load_fault(fault_paths, index):
 
 base_transform = A.Compose(
     [
-        A.Resize(height=256, width=640, interpolation=cv2.INTER_CUBIC),
+        A.Resize(height=256, width=640, interpolation=cv2.INTER_NEAREST),
+        A.HorizontalFlip(p=0.5),
         ToTensorV2(),
     ],
-is_check_shapes=False,
-additional_targets={'seism': 'image'},
+    is_check_shapes=False,
+    additional_targets={"seism": "image"},
 )
 
 
