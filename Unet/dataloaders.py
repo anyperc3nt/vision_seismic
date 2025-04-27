@@ -19,9 +19,9 @@ def load_seism(seism_paths, index):
 
 def load_geomodel(model_paths, index):
 
-    model_0 = np.fromfile((model_paths[index][0]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)
-    model_1 = np.fromfile((model_paths[index][1]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)
-    model_2 = np.fromfile((model_paths[index][2]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)
+    model_0 = np.fromfile((model_paths[index][0]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)[::-1, :]
+    model_1 = np.fromfile((model_paths[index][1]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)[::-1, :]
+    model_2 = np.fromfile((model_paths[index][2]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)[::-1, :]
     geomodel_3ch = np.stack((model_0, model_1, model_2), axis=-1)
 
     return geomodel_3ch
