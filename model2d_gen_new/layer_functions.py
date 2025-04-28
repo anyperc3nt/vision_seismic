@@ -20,7 +20,7 @@ MAX_X = 2000
 # Один раз строим таблицу
 _perlin_table = np.empty(MAX_X, dtype=float)
 for xi in range(MAX_X):
-    _perlin_table[xi] = noise1(xi / 500) * 40 + noise2(xi / 500) * 20 + noise3(xi / 500) * 10
+    _perlin_table[xi] = (noise1(xi / 500) * 40 + noise2(xi / 500) * 20 + noise3(xi / 500) * 10)*1.5
 
 
 def perlin_line(x):

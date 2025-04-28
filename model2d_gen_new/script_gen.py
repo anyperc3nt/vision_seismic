@@ -1,6 +1,6 @@
 import os
 
-batchsize = 1700
+batchsize = 800*2*3+100
 # slurm_header = """#!/bin/sh
 # #SBATCH -D /s/ls4/users/khokhlov/model_2d_04_2025/model2d_gen_new
 # #SBATCH -o %j.out

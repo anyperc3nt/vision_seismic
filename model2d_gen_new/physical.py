@@ -19,7 +19,7 @@ class PhysicalModelBuilder:
         vs = [vp[0] / self.delimiter]
 
         for i in range(1, num_layers):
-            temp_rho = rho[i - 1] * np.random.uniform(1, 2.4 ** (1 / num_layers))
+            temp_rho = rho[i - 1] * np.random.uniform(1, 4.0 ** (1 / num_layers))
             rho.append(min(temp_rho, self.rho_max))
 
             temp_vp = rho[i] * self.multiplicator
