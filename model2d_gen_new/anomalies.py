@@ -1,12 +1,11 @@
+import random
+from typing import List, Tuple
+
 import numpy as np
+from matplotlib.path import Path
+from model import GeoModel
 from scipy.interpolate import CubicSpline, interp1d
 from scipy.spatial import ConvexHull
-from matplotlib.path import Path
-from typing import Tuple
-import random
-from typing import List
-
-from model import GeoModel
 
 
 class GeoStructure:
@@ -76,8 +75,7 @@ class LayerAnomaly(GeoStructure):
     Представляет слой, начинающийся с заданной глубины и искривлённый функцией.
     """
 
-    def __init__(self, line_func: "function", start, model_value):
-        self.model_value = model_value
+    def __init__(self, line_func: "function", start):
         self.line_func = line_func
         self.start = start
 
@@ -111,10 +109,49 @@ class LayersGenerator(GeoStructureListGenerator):
         layer_depths = np.cumsum(layer_thicknesses).astype(int)
         layer_depths[layer_depths >= self.model.y_size] = self.model.y_size - 1  # Ограничение по глубине
 
-        return [
-            LayerAnomaly(self.line_func, start=layer_depths[i], model_value=i + 2)
-            for i in range(len(layer_thicknesses))
-        ]
+        return [LayerAnomaly(self.line_func, start=layer_depths[i]) for i in range(len(layer_thicknesses))]
+
+
+class DistortedLayerGenerator(GeoStructureGenerator):
+    """
+    Генератор слоя с искажениями. Основной наклон задаётся через точку старта и угол наклона.
+    Искажения добавляются с помощью сплайна.
+    """
+
+    def __init__(
+        self,
+        model: GeoModel,
+        line_func: "function",
+        distort_range: Tuple[float, float],
+        num_points: int,
+        y_center_range: Tuple[int, int],
+        x_center_range: Tuple[int, int],
+        angle_rad_range: Tuple[float, float],  # в числах пи
+    ):
+        self.model = model
+        self.line_func = line_func
+        self.distort_range = distort_range
+        self.num_points = num_points
+        self.y_center_range = y_center_range
+        self.x_center_range = x_center_range
+        self.angle_rad_range = angle_rad_range
+
+    def generate(self):
+        angle_rad = np.random.uniform(*self.angle_rad_range) * np.random.choice([-1, 1])
+        y_center = np.random.randint(*self.y_center_range)
+        x_center = np.random.randint(*self.x_center_range)
+
+        slope = np.tan(angle_rad)
+
+        x_points = np.linspace(0, self.model.x_size, num=self.num_points)
+        y_points = np.random.uniform(*self.distort_range, size=self.num_points)
+        spline = CubicSpline(x_points, y_points)
+
+        def layer_func(x):
+            base = y_center + slope * (x - x_center) + self.line_func(x)
+            return base + spline(x)
+
+        return LayerAnomaly(layer_func, start=0)
 
 
 class EllipseAnomaly(GeoStructure):
@@ -216,59 +253,74 @@ class SplineGenerator(GeoStructureGenerator):
         return SplineShapeAnomaly(x_points, y_points)
 
 
-class MountainAnomaly(GeoStructure):
+class MountainGenerator(GeoStructureGenerator):
     """
-    Можно применять, но генератор и парсер не прописан из-за ненадобности
+    Генерирует произвольную MountainAnomaly.
     """
 
-    def __init__(self, y_start: int, x_points: np.ndarray, y_points: np.ndarray):
-        self.x_points = x_points
-        self.y_points = y_points
+    def __init__(
+        self,
+        num_points: int,
+        y_start: int,
+        cx_range: Tuple[int, int],
+        ry_range: Tuple[int, int],
+        rx_range: Tuple[int, int],
+    ):
+        self.num_points = num_points
         self.y_start = y_start
-        self.spline = CubicSpline(x_points, y_points)
+        self.cx_range = cx_range
+        self.ry_range = ry_range
+        self.rx_range = rx_range
 
-    def mask_func(self, y, x):
-        return ((self.x_points[0] <= x) & (x < self.x_points[-1])) & (y > self.y_start - self.spline(x))
+    def generate(self):
+        center_x = np.random.randint(*self.cx_range)
+        ry = np.random.randint(*self.ry_range)
+        rx = np.random.randint(*self.rx_range)
+
+        x_points = np.linspace(center_x - rx, center_x + rx, num=self.num_points)
+        y_points = np.random.uniform(0, ry, size=self.num_points)
+        y_points[0], y_points[-1] = 0, 0
+
+        # Строим "замкнутую гору": верхняя часть по сплайну, нижняя — горизонтальная линия
+        x_full = np.append(x_points, x_points[::-1])
+        y_full = np.append(self.y_start - y_points, np.full_like(y_points, self.y_start))
+
+        return SplineShapeAnomaly(x_full, y_full)
 
 
-# elif anomaly_type == "mountain":
-#     x_points = np.linspace(200, 300, num=4)
-#     y_points = np.random.uniform(0, 50, size=4)
-#     y_points[0], y_points[-1] = 0, 0
-#     spline = CubicSpline(x_points, y_points)
-
-#     for x in range(x_size):
-#         y_top = int(spline(x)) if 200 <= x < 300 else 0
-#         model[x, int(y_size - y_top):] = num_layers + 1
-
-
-from layer_functions import ragged_line
-
-
-class DistortetLayerAnomaly(GeoStructure):
+class ImageGenerator(GeoStructureGenerator):
     """
-    Можно применять, но генератор и парсер не прописан из-за ненадобности
+    Аномалия, использующая в качестве контура spline
+
+    xy: двумерный массив, заранее подготовленный контур изображения
     """
 
-    def __init__(self, x_points: np.ndarray, y_points: np.ndarray):
-        self.x_points = x_points
-        self.y_points = y_points
-        self.spline = CubicSpline(x_points, y_points)
+    def __init__(
+        self,
+        xy: np.ndarray,
+        cy_range: Tuple[int, int],
+        cx_range: Tuple[int, int],
+        ry_range: Tuple[int, int],
+        rx_range: Tuple[int, int],
+    ):
+        self.xy = xy
+        self.cy_range = cy_range
+        self.cx_range = cx_range
+        self.ry_range = ry_range
+        self.rx_range = rx_range
 
-    def mask_func(self, y, x):
-        return ((self.x_points[0] <= x) & (x < self.x_points[-1])) & (
-            y > self.y_start - self.spline(x) + ragged_line(x + 2)
-        )
+    def generate(self):
+        center_y = np.random.randint(*self.cy_range)
+        center_x = np.random.randint(*self.cx_range)
+        ry = np.random.randint(*self.ry_range)
+        rx = np.random.randint(*self.rx_range)
 
+        xy_scaled = np.copy(self.xy)
+        xy_scaled[:, 0] *= rx
+        xy_scaled[:, 1] *= ry
+        xy_scaled[:, 0] += center_x - rx / 2
+        xy_scaled[:, 1] += center_y - ry / 2
 
-# elif anomaly_type == "distorted_layers":
-#         x_points = np.linspace(0, 500, num=3)
-#         y_points = np.random.uniform(5, 100, size=3)
-#         y_points[0], y_points[-1] = 0, 150
-#         spline = CubicSpline(x_points, y_points)
+        x_points, y_points = xy_scaled[:, 0], xy_scaled[:, 1]
 
-#         for x in range(x_size):
-#             y_top = int(spline(x) + x / 50) if x >= x_points[0] else 0
-#             model[x, int((y_size - y_top) + 3 * ragged_line(x + 2)):] = num_layers + 1
-#     else:
-#         pass
+        return SplineShapeAnomaly(x_points, y_points)

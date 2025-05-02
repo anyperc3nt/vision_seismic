@@ -1,14 +1,14 @@
+import argparse
+import os
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
-import os
-import argparse
-
-from rect_config_generator import rect_config_generator
 from anomalies import GeoStructureApplicator
-from faults import FaultApplicator
 from config_parser import ConfigParser
+from faults import FaultApplicator
+from rect_config_generator import rect_config_generator
+from tqdm import tqdm
 
 
 # Визуализация распределений rho, vp и vs
@@ -38,7 +38,7 @@ def model_generator(config_path, dataset_path):
     applicator = GeoStructureApplicator(model)
     layers_gen = parser.create_layers_generator(model)
     faults_gen = parser.create_faults_generator()
-    anomaly_selector = parser.create_anomaly_selector()
+    anomaly_selector = parser.create_anomaly_selector(model)
     physical_model_builder = parser.create_physical_model_builder()
 
     for num in tqdm(
@@ -86,7 +86,7 @@ def model_generator(config_path, dataset_path):
         save_to_bin(vp_model, f"{dataset_path}/configs/config_{num}/vp_{num}.bin")
         save_to_bin(vs_model, f"{dataset_path}/configs/config_{num}/vs_{num}.bin")
         if faults_gen is not None:
-            save_to_bin(vs_model, f"{dataset_path}/configs/config_{num}/fault_map_{num}.bin")
+            save_to_bin(model.faults_workview[...], f"{dataset_path}/configs/config_{num}/fault_map_{num}.bin")
 
         for j in range(3):
             rect_config_generator(dataset_path, num, j)
@@ -102,24 +102,9 @@ if __name__ == "__main__":
         print("Сохраняем картинки распределений")
 
     for filename in os.listdir("model_configs"):
-        if filename.endswith(".yaml"):  # или другое расширение
+        if filename.endswith(".yaml"):
             name = os.path.splitext(filename)[0]
             dataset_path = os.path.join("dataset", name)
             config_path = os.path.join("model_configs", filename)
             # os.makedirs(dataset_path, exist_ok=True)
             model_generator(config_path, dataset_path)
-
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser()
-#     # Для датасета нам не нужно сохранять png картинки
-#     parser.add_argument("--save_plots", action="store_true")
-#     args = parser.parse_args()
-
-#     if args.save_plots:
-#         print("Сохраняем картинки распределений")
-#     filename = 'config_test.yaml'
-#     name = os.path.splitext(filename)[0]
-#     dataset_path = os.path.join("dataset", name)
-#     config_path = filename
-#     # os.makedirs(dataset_path, exist_ok=True)
-#     model_generator(config_path, dataset_path)

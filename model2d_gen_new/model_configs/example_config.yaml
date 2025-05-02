@@ -1,5 +1,5 @@
-num_samples: 800
-#num_samples: 2
+# num_samples: 200
+num_samples: 1
 
 model:
   x_size: 501
@@ -12,10 +12,10 @@ physics:
   multiplicator_range: [1.1, 1.15]
 
 layers:
-  line_func: ragged 
-  #line_func: perlin
+  # line_func: ragged 
+  line_func: perlin
   #line_func: zero 
-  num_layers_range: [5,11]
+  num_layers_range: [5,8]
   layer_thickness_range: [0.7, 1.4]
 
 # faults:
@@ -26,6 +26,22 @@ layers:
 #   angle_rad_range: [0.4, 0.6] #в числах пи
 
 anomalies:
+
+  - type: distorted_layer
+    line_func: ragged 
+    distort_range: [-1, 1]
+    num_points: 4
+    y_center_range: [120,180]
+    x_center_range: [150,350]
+    angle_rad_range: [-0.3, 0.3]
+  
+  - type: mountain
+    num_points: 4
+    y_start: [201]
+    cx_range: [109, 391]
+    ry_range: [50, 51]
+    rx_range: [100, 101]
+  
   - type: ellipse
     cy_range: [60, 140]
     cx_range: [160, 340]

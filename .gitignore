@@ -3,6 +3,7 @@
 dataset/
 scripts/
 archive_configs/
+images/
 
 
 #===Unet===

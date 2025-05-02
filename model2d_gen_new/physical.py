@@ -1,11 +1,11 @@
 import numpy as np
-
 from model import GeoModel
+
 
 class PhysicalModelBuilder:
     def __init__(self, rho_range, vp_range, delimiter_range, multiplicator_range):
         self.rho_min, self.rho_max = rho_range[0], rho_range[1]
-        self.vp_min, self.vp_max = vp_range[0],  vp_range[1]
+        self.vp_min, self.vp_max = vp_range[0], vp_range[1]
         self.delimiter_range = delimiter_range
         self.multiplicator_range = multiplicator_range
 
@@ -19,7 +19,8 @@ class PhysicalModelBuilder:
         vs = [vp[0] / self.delimiter]
 
         for i in range(1, num_layers):
-            temp_rho = rho[i - 1] * np.random.uniform(1, 4.0 ** (1 / num_layers))
+            # магические числа, которые пока нельзя задать конфигом
+            temp_rho = rho[i - 1] * np.random.uniform(1, 3.0 ** (1 / num_layers))
             rho.append(min(temp_rho, self.rho_max))
 
             temp_vp = rho[i] * self.multiplicator
@@ -36,7 +37,6 @@ class PhysicalModelBuilder:
         vp_model = np.zeros_like(model, dtype=float)
         vs_model = np.zeros_like(model, dtype=float)
 
-
         for i in range(num_layers + 1):
             idx = i + 1
             if i < len(rho_list):
@@ -44,7 +44,7 @@ class PhysicalModelBuilder:
                 vp_model[model == idx] = vp_list[i]
                 vs_model[model == idx] = vs_list[i]
             else:
-                #магические числа, которые пока нельзя задать конфигом
+                # магические числа, которые пока нельзя задать конфигом
                 rho_model[model == idx] = 4800.0
                 vp_model[model == idx] = 4600.0
                 vs_model[model == idx] = 2000.0 + ((vs_list[-1] - np.mean(vs_list)) / (self.vp_max / self.delimiter))

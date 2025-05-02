@@ -1,26 +1,30 @@
+from typing import List, Union
+
 import numpy as np
 import yaml
-from model import GeoModel
 from anomalies import (
-    GeoStructure,
-    GeoStructureListGenerator,
-    GeoStructureGenerator,
     AnomalySelector,
+    DistortedLayerGenerator,
     EllipseGenerator,
+    GeoStructure,
+    GeoStructureGenerator,
+    GeoStructureListGenerator,
+    ImageGenerator,
+    LayersGenerator,
+    MountainGenerator,
     SplineGenerator,
 )
-from layer_functions import ragged_line, perlin_line, zero_line
 from faults import FaultsGenerator
-from anomalies import LayersGenerator
+from layer_functions import perlin_line, ragged_line, zero_line
+from model import GeoModel
 from physical import PhysicalModelBuilder
-from typing import Union, List
 
 
 class ConfigParser:
     def __init__(self, config_path):
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
-    
+
     def get_num_samples(self) -> int:
         num_samples = self.config.get("num_samples")
         if num_samples is None:
@@ -75,7 +79,7 @@ class ConfigParser:
             angle_rad_range=tuple(np.pi * np.array(faults_cfg["angle_rad_range"])),
         )
 
-    def create_anomaly_selector(self) -> Union[AnomalySelector, None]:
+    def create_anomaly_selector(self, model: GeoModel) -> Union[AnomalySelector, None]:
         if not self.config.get("anomalies"):
             return None
 
@@ -99,13 +103,50 @@ class ConfigParser:
                     ry_range=tuple(anomaly_cfg["ry_range"]),
                     rx_range=tuple(anomaly_cfg["rx_range"]),
                 )
+            elif type_ == "image":
+                image_path = anomaly_cfg["file"]
+                xy = np.load(image_path)
+                generator = ImageGenerator(
+                    xy=xy,
+                    cy_range=tuple(anomaly_cfg["cy_range"]),
+                    cx_range=tuple(anomaly_cfg["cx_range"]),
+                    ry_range=tuple(anomaly_cfg["ry_range"]),
+                    rx_range=tuple(anomaly_cfg["rx_range"]),
+                )
+            elif type_ == "mountain":
+                generator = MountainGenerator(
+                    num_points=anomaly_cfg["num_points"],
+                    y_start=anomaly_cfg["y_start"],
+                    cx_range=tuple(anomaly_cfg["cx_range"]),
+                    ry_range=tuple(anomaly_cfg["ry_range"]),
+                    rx_range=tuple(anomaly_cfg["rx_range"]),
+                )
+            elif type_ == "distorted_layer":
+                line_func_name = anomaly_cfg["line_func"]
+                if line_func_name == "ragged":
+                    line_func = ragged_line
+                elif line_func_name == "perlin":
+                    line_func = perlin_line
+                elif line_func_name == "zero":
+                    line_func = zero_line
+                else:
+                    raise ValueError(f"Unknown line_func: {line_func_name}")
+                generator = DistortedLayerGenerator(
+                    model=model,
+                    line_func=line_func,
+                    num_points=anomaly_cfg["num_points"],
+                    distort_range=tuple(anomaly_cfg["distort_range"]),
+                    angle_rad_range=tuple(anomaly_cfg["angle_rad_range"]),
+                    y_center_range=tuple(anomaly_cfg["y_center_range"]),
+                    x_center_range=tuple(anomaly_cfg["x_center_range"]),
+                )
             else:
                 raise ValueError(f"Unknown anomaly type: {type_}")
 
             generators.append(generator)
 
         return AnomalySelector(generators)
-    
+
     def create_physical_model_builder(self) -> PhysicalModelBuilder:
         physics_cfg = self.config.get("physics")
         if physics_cfg is None:
