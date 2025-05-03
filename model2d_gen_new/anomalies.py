@@ -6,6 +6,7 @@ from matplotlib.path import Path
 from model import GeoModel
 from scipy.interpolate import CubicSpline, interp1d
 from scipy.spatial import ConvexHull
+from layer_functions import PerlinLine
 
 
 class GeoStructure:
@@ -101,6 +102,8 @@ class LayersGenerator(GeoStructureListGenerator):
         self.line_func = line_func
 
     def generate(self):
+        if isinstance(self.line_func, PerlinLine):
+            self.line_func.shuffle()
         num_layers = np.random.randint(*self.num_layers_range)
         self.model.num_layers = num_layers
         layer_thicknesses = np.random.uniform(
@@ -122,7 +125,6 @@ class DistortedLayerGenerator(GeoStructureGenerator):
         self,
         model: GeoModel,
         line_func: "function",
-        distort_range: Tuple[float, float],
         num_points: int,
         y_center_range: Tuple[int, int],
         x_center_range: Tuple[int, int],
@@ -130,26 +132,23 @@ class DistortedLayerGenerator(GeoStructureGenerator):
     ):
         self.model = model
         self.line_func = line_func
-        self.distort_range = distort_range
         self.num_points = num_points
         self.y_center_range = y_center_range
         self.x_center_range = x_center_range
         self.angle_rad_range = angle_rad_range
 
     def generate(self):
+        if isinstance(self.line_func, PerlinLine):
+            self.line_func.shuffle()
+
         angle_rad = np.random.uniform(*self.angle_rad_range) * np.random.choice([-1, 1])
         y_center = np.random.randint(*self.y_center_range)
         x_center = np.random.randint(*self.x_center_range)
 
         slope = np.tan(angle_rad)
 
-        x_points = np.linspace(0, self.model.x_size, num=self.num_points)
-        y_points = np.random.uniform(*self.distort_range, size=self.num_points)
-        spline = CubicSpline(x_points, y_points)
-
         def layer_func(x):
-            base = y_center + slope * (x - x_center) + self.line_func(x)
-            return base + spline(x)
+            return y_center + slope * (x - x_center) + self.line_func(x)
 
         return LayerAnomaly(layer_func, start=0)
 

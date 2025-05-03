@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Tuple
+
+import numpy as np
 from perlin_noise import PerlinNoise
 
 
@@ -9,29 +10,45 @@ def ragged_line(x):
     ) * np.random.uniform(2.0, 3.0)
 
 
-# Немного стремная, но оптимизация perlin_noise, в 200*num_samples раз сокращающее время на повторные рассчеты
-noise1 = PerlinNoise(octaves=3)
-noise2 = PerlinNoise(octaves=6)
-noise3 = PerlinNoise(octaves=12)
-
-# Предполагаем, что ширина модели не превышает MAX_X
+# Немного стремная, но оптимизация perlin_noise, в 500*num_samples раз сокращающее время на повторные рассчеты
 MAX_X = 2000
 
-# Один раз строим таблицу
-_perlin_table = np.empty(MAX_X, dtype=float)
-for xi in range(MAX_X):
-    _perlin_table[xi] = (noise1(xi / 500) * 40 + noise2(xi / 500) * 20 + noise3(xi / 500) * 10)*1.5
 
+class PerlinLine:
+    """
+    PerlinLine создавалась как "сложная" функция слоев для обучения нейросети,
+    поэтому справедливым будет, если для каждого семпла она будет разная
+    (до этого она инициализировалась 1 раз при создании датасета, т. е. была идентичной для всех семплов)
+    """
 
-def perlin_line(x):
-    """
-    x  – либо одно целое, либо массив целых.
-    Возвращает предвычисленные значения из таблицы.
-    """
-    arr = np.asarray(x, dtype=int)
-    # Если вдруг x выходит за пределы [0, MAX_X), обрежем
-    arr_clipped = np.clip(arr, 0, MAX_X - 1)
-    return _perlin_table[arr_clipped]
+    def __init__(self):
+        noise1 = PerlinNoise(octaves=12)
+        noise2 = PerlinNoise(octaves=24)
+        noise3 = PerlinNoise(octaves=48)
+
+        self._table1 = np.array([noise1(x / MAX_X) * 40 * 1.5 for x in range(MAX_X)])
+        self._table2 = np.array([noise2(x / MAX_X) * 20 * 1.5 for x in range(MAX_X)])
+        self._table3 = np.array([noise3(x / MAX_X) * 10 * 1.5 for x in range(MAX_X)])
+
+        self.shift1 = 0
+        self.shift2 = 0
+        self.shift3 = 0
+
+    def __call__(self, x):
+        x = np.asarray(x, dtype=int) % MAX_X
+        return (
+            self._table1[(x + self.shift1) % MAX_X]
+            + self._table2[(x + self.shift2) % MAX_X]
+            + self._table3[(x + self.shift3) % MAX_X]
+        )
+
+    def shuffle(self):
+        """
+        меняет сдвиги для трех шумов, из которых состоит функция слоя, делая ее неузнаваемой
+        """
+        self.shift1 = np.random.randint(0, MAX_X)
+        self.shift2 = np.random.randint(0, MAX_X)
+        self.shift3 = np.random.randint(0, MAX_X)
 
 
 def zero_line(x):

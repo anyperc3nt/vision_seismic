@@ -15,7 +15,7 @@ from anomalies import (
     SplineGenerator,
 )
 from faults import FaultsGenerator
-from layer_functions import perlin_line, ragged_line, zero_line
+from layer_functions import PerlinLine, ragged_line, zero_line
 from model import GeoModel
 from physical import PhysicalModelBuilder
 
@@ -53,7 +53,7 @@ class ConfigParser:
         if line_func_name == "ragged":
             line_func = ragged_line
         elif line_func_name == "perlin":
-            line_func = perlin_line
+            line_func = PerlinLine()
         elif line_func_name == "zero":
             line_func = zero_line
         else:
@@ -126,7 +126,7 @@ class ConfigParser:
                 if line_func_name == "ragged":
                     line_func = ragged_line
                 elif line_func_name == "perlin":
-                    line_func = perlin_line
+                    line_func = PerlinLine()
                 elif line_func_name == "zero":
                     line_func = zero_line
                 else:
@@ -135,7 +135,6 @@ class ConfigParser:
                     model=model,
                     line_func=line_func,
                     num_points=anomaly_cfg["num_points"],
-                    distort_range=tuple(anomaly_cfg["distort_range"]),
                     angle_rad_range=tuple(anomaly_cfg["angle_rad_range"]),
                     y_center_range=tuple(anomaly_cfg["y_center_range"]),
                     x_center_range=tuple(anomaly_cfg["x_center_range"]),
