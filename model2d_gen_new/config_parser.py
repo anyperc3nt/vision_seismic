@@ -1,4 +1,5 @@
-from typing import List, Union
+import inspect
+from typing import List, Tuple, Union
 
 import numpy as np
 import yaml
@@ -15,9 +16,34 @@ from anomalies import (
     SplineGenerator,
 )
 from faults import FaultsGenerator
-from layer_functions import PerlinLine, ragged_line, zero_line
+from layer_functions import PerlinLine, RaggedLine, ZeroLine
 from model import GeoModel
 from physical import PhysicalModelBuilder
+
+
+def create_instance(cls, config_dict):
+    """
+    Для умного чтения конфигов без рутинного прописывания параметров.
+
+    Есть проверка на параметры, такие как 'angle_rad_range',
+    которые нужно умножить на np.pi.
+    """
+    sig = inspect.signature(cls)
+    kwargs = {}
+
+    for name, param in sig.parameters.items():
+        if name in config_dict:
+            value = config_dict[name]
+            if "angle_rad" in name and isinstance(value, list):
+                value = np.array(value) * np.pi  # Если это angle_rad_range, умножаем на np.pi
+
+            # Если значение списка, конвертируем в tuple
+            if isinstance(value, list) and param.annotation in (tuple, Tuple):
+                value = tuple(value)
+
+            kwargs[name] = value
+
+    return cls(**kwargs)
 
 
 class ConfigParser:
@@ -49,15 +75,7 @@ class ConfigParser:
         if layers_cfg is None:
             return None
 
-        line_func_name = layers_cfg["line_func"]
-        if line_func_name == "ragged":
-            line_func = ragged_line
-        elif line_func_name == "perlin":
-            line_func = PerlinLine()
-        elif line_func_name == "zero":
-            line_func = zero_line
-        else:
-            raise ValueError(f"Unknown line_func: {line_func_name}")
+        line_func = globals()[layers_cfg["line_func"]]()
 
         return LayersGenerator(
             model=model,
@@ -71,74 +89,36 @@ class ConfigParser:
         if faults_cfg is None:
             return None
 
-        return FaultsGenerator(
-            num_faults_range=tuple(faults_cfg["num_faults_range"]),
-            displacement_range=tuple(faults_cfg["displacement_range"]),
-            y_center_range=tuple(faults_cfg["y_center_range"]),
-            x_center_range=tuple(faults_cfg["x_center_range"]),
-            angle_rad_range=tuple(np.pi * np.array(faults_cfg["angle_rad_range"])),
-        )
+        return create_instance(FaultsGenerator, faults_cfg)
 
     def create_anomaly_selector(self, model: GeoModel) -> Union[AnomalySelector, None]:
         if not self.config.get("anomalies"):
             return None
 
-        generators: List[GeoStructureGenerator] = []
+        generators = []
 
-        for anomaly_cfg in self.config["anomalies"]:
-            type_ = anomaly_cfg["type"]
+        for cfg in self.config["anomalies"]:
+            type_ = cfg["type"]
 
-            if type_ == "ellipse":
-                generator = EllipseGenerator(
-                    cy_range=tuple(anomaly_cfg["cy_range"]),
-                    cx_range=tuple(anomaly_cfg["cx_range"]),
-                    ry_range=tuple(anomaly_cfg["ry_range"]),
-                    rx_range=tuple(anomaly_cfg["rx_range"]),
-                )
-            elif type_ == "spline":
-                generator = SplineGenerator(
-                    num_points=anomaly_cfg["num_points"],
-                    cy_range=tuple(anomaly_cfg["cy_range"]),
-                    cx_range=tuple(anomaly_cfg["cx_range"]),
-                    ry_range=tuple(anomaly_cfg["ry_range"]),
-                    rx_range=tuple(anomaly_cfg["rx_range"]),
-                )
+            if type_ == "distorted_layer":
+                line_func = globals()[cfg["line_func"]]()
+                cfg = {**cfg, "line_func": line_func, "model": model}
+                generator = create_instance(DistortedLayerGenerator, cfg)
+
             elif type_ == "image":
-                image_path = anomaly_cfg["file"]
-                xy = np.load(image_path)
-                generator = ImageGenerator(
-                    xy=xy,
-                    cy_range=tuple(anomaly_cfg["cy_range"]),
-                    cx_range=tuple(anomaly_cfg["cx_range"]),
-                    ry_range=tuple(anomaly_cfg["ry_range"]),
-                    rx_range=tuple(anomaly_cfg["rx_range"]),
-                )
+                xy = np.load(cfg["file"])
+                cfg = {**cfg, "xy": xy}
+                generator = create_instance(ImageGenerator, cfg)
+
+            elif type_ == "ellipse":
+                generator = create_instance(EllipseGenerator, cfg)
+
+            elif type_ == "spline":
+                generator = create_instance(SplineGenerator, cfg)
+
             elif type_ == "mountain":
-                generator = MountainGenerator(
-                    num_points=anomaly_cfg["num_points"],
-                    y_start=anomaly_cfg["y_start"],
-                    cx_range=tuple(anomaly_cfg["cx_range"]),
-                    ry_range=tuple(anomaly_cfg["ry_range"]),
-                    rx_range=tuple(anomaly_cfg["rx_range"]),
-                )
-            elif type_ == "distorted_layer":
-                line_func_name = anomaly_cfg["line_func"]
-                if line_func_name == "ragged":
-                    line_func = ragged_line
-                elif line_func_name == "perlin":
-                    line_func = PerlinLine()
-                elif line_func_name == "zero":
-                    line_func = zero_line
-                else:
-                    raise ValueError(f"Unknown line_func: {line_func_name}")
-                generator = DistortedLayerGenerator(
-                    model=model,
-                    line_func=line_func,
-                    num_points=anomaly_cfg["num_points"],
-                    angle_rad_range=tuple(anomaly_cfg["angle_rad_range"]),
-                    y_center_range=tuple(anomaly_cfg["y_center_range"]),
-                    x_center_range=tuple(anomaly_cfg["x_center_range"]),
-                )
+                generator = create_instance(MountainGenerator, cfg)
+
             else:
                 raise ValueError(f"Unknown anomaly type: {type_}")
 
@@ -151,9 +131,4 @@ class ConfigParser:
         if physics_cfg is None:
             raise ValueError("Missing physics configuration")
 
-        return PhysicalModelBuilder(
-            rho_range=tuple(physics_cfg["rho_range"]),
-            vp_range=tuple(physics_cfg["vp_range"]),
-            delimiter_range=tuple(physics_cfg["delimiter_range"]),
-            multiplicator_range=tuple(physics_cfg["multiplicator_range"]),
-        )
+        return create_instance(PhysicalModelBuilder, physics_cfg)
