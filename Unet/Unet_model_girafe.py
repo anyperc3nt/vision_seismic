@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from CFG import CFG
 
 
 # your code here
@@ -79,6 +81,8 @@ class UNetDecoderBlock(nn.Module):
 
     def forward(self, x, skip_connection):
         x = self.upsample(x)
+        # Приводим размеры skip-соединения к размерам x (upsampled)
+        skip_connection = F.interpolate(skip_connection, size=x.shape[2:], mode="bilinear", align_corners=False)
         x = torch.cat([x, skip_connection], dim=1)
         return self.convs(x)
 
@@ -103,8 +107,17 @@ class UNetDecoder(nn.Module):
 
 
 class UNet_girafe(nn.Module):
-    def __init__(self, in_channels=3, num_classes=3, hidden_channels=None):
+    def __init__(
+        self,
+        in_channels=3 * CFG.CHANNEL_DELIMITER,
+        num_classes=3,
+        hidden_channels=None,
+        target_size=(CFG.seism_y_size, CFG.seism_x_size // CFG.CHANNEL_DELIMITER),
+    ):
         super().__init__()
+
+        self.target_size = target_size
+
         if hidden_channels is None:
             hidden_channels = [4, 16, 32, 64, 128]
 
@@ -125,5 +138,9 @@ class UNet_girafe(nn.Module):
         x = self.input_convs(x)
         encoder_outputs = self.encoder(x)
         x = self.decoder(encoder_outputs)
+
+        if self.target_size:
+            x = F.interpolate(x, size=self.target_size, mode="bilinear", align_corners=False)
+
         x = self.to_mask(x)
         return self.activation(x)

@@ -3,6 +3,7 @@ import os
 import albumentations as A
 import cv2
 import numpy as np
+import torch
 from albumentations.pytorch import ToTensorV2
 from CFG import CFG
 from data_preprocessing import normalize_geomodel, normalize_seism
@@ -47,7 +48,7 @@ def bake_seisms_to_npy(seism_paths, force=False):
     already_done = os.path.exists(save_path)
 
     if (not already_done) or (force):
-        print("воркаем над сейсм")
+        print("предобрабатываем и сохраняем сейсмограммы")
         for index in range(len(seism_paths)):
             seism_3ch = load_seism(seism_paths, index)
             seism_3ch = normalize_seism(seism_3ch)
@@ -92,7 +93,7 @@ def bake_geomodels_to_npy(geomodel_paths, force=False):
     already_done = os.path.exists(save_path)
 
     if (not already_done) or (force):
-        print("воркаем над геомоделями")
+        print("предобрабатываем и сохраняем геомодели")
         for index in range(len(geomodel_paths)):
             geomodel_3ch = load_geomodel(geomodel_paths, index)
             geomodel_3ch = normalize_geomodel(geomodel_3ch)
@@ -107,35 +108,98 @@ def bake_geomodels_to_npy(geomodel_paths, force=False):
 
 def load_fault(fault_paths, index):
 
-    fault = np.fromfile((fault_paths[index]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)
+    fault = np.fromfile((fault_paths[index]), dtype="f").reshape(CFG.model_y_size, CFG.model_x_size)[::-1, :]
 
     return fault
 
 
 base_transform = A.Compose(
     [
-        A.Resize(height=256, width=640, interpolation=cv2.INTER_NEAREST),
+        A.Resize(
+            height=CFG.seism_y_size, width=CFG.seism_x_size // CFG.CHANNEL_DELIMITER, interpolation=cv2.INTER_NEAREST
+        ),
         A.HorizontalFlip(p=0.5),
         ToTensorV2(),
     ],
     is_check_shapes=False,
-    additional_targets={"seism": "image"},
+    additional_targets={
+        "seism1": "image",
+        "seism2": "image",
+    },
 )
 
 
-class Seism_3ch_Dataset(Dataset):
+class Seism_Dataset(Dataset):
     def __init__(
         self,
         seism_paths,
         geomodel_paths,
+        channel_tag=CFG.CHANNEL_TAG,
         transform=base_transform,
+        force=False,
     ):
+        """
+        force - флаг, отвечающий за форсирование загрузки сейсмограмм из txt и геомоделей из бинарников на этапе инициализации,
+        для того чтобы перезаписать npy файлики
+
+        channel_type: - датасет возвращает сейсмограммы разных каналов в зависимости от выбранного подхода (см. CFG)
+        """
+        self.channel_tag = channel_tag
         self.seism_paths = seism_paths
         self.geomodel_paths = geomodel_paths
         self.transform = transform
 
-        bake_seisms_to_npy(self.seism_paths)
-        bake_geomodels_to_npy(self.geomodel_paths)
+        bake_seisms_to_npy(self.seism_paths, force=force)
+        bake_geomodels_to_npy(self.geomodel_paths, force=force)
+
+        seism, geomodel = self.__getitem__(0)
+        print(f"seism shape: {seism.shape}, geomodel shape: {geomodel.shape}")
+
+    def __len__(self):
+        return len(self.seism_paths)
+
+    def __getitem__(self, index):
+
+        seism_3ch = load_seism_from_npy(self.seism_paths, index)
+        geomodel_3ch = load_geomodel_from_npy(self.geomodel_paths, index)
+
+        if self.channel_tag == "3ch":
+            augmented = self.transform(image=geomodel_3ch, seism1=seism_3ch)
+            geomodel = augmented["image"]
+            seism = augmented["seism1"]
+
+        elif self.channel_tag == "6ch":
+            augmented = self.transform(image=geomodel_3ch, seism1=seism_3ch[:, 0::2], seism2=seism_3ch[:, 1::2])
+            geomodel = augmented["image"]
+            seism_vp = augmented["seism1"]  # пока что vp это четные, на самом деле хз какие
+            seism_vs = augmented["seism2"]
+            seism = torch.cat([seism_vp, seism_vs], dim=0)
+
+        elif self.channel_tag == "vp":
+            augmented = self.transform(image=geomodel_3ch, seism1=seism_3ch[:, 0::2], seism2=seism_3ch[:, 1::2])
+            geomodel = augmented["image"]
+            seism = augmented["seism1"]  # пока что vp это четные, на самом деле хз какие
+
+        elif self.channel_tag == "vs":
+            augmented = self.transform(image=geomodel_3ch, seism1=seism_3ch[:, 0::2], seism2=seism_3ch[:, 1::2])
+            geomodel = augmented["image"]
+            seism = augmented["seism2"]  # пока что vp это четные, на самом деле хз какие
+
+        return seism, geomodel
+
+
+class Seism_3ch_Dataset(Dataset):
+    """
+    старый класс, пусть пока останется
+    """
+
+    def __init__(self, seism_paths, geomodel_paths, transform=base_transform, force=False):
+        self.seism_paths = seism_paths
+        self.geomodel_paths = geomodel_paths
+        self.transform = transform
+
+        bake_seisms_to_npy(self.seism_paths, force=force)
+        bake_geomodels_to_npy(self.geomodel_paths, force=force)
 
     def __len__(self):
         return len(self.seism_paths)

@@ -15,7 +15,7 @@ def train_model(train_loader, val_loader, model, criterion, optimizer, device):
     for epoch in tqdm(range(CFG.EPOCHS), desc="training", leave=True):
         if epoch == 0:
             print(
-                f"{'Epoch':<10}{'Train Loss':<15}{'Val Loss':<15}{'Val SSIM':<15}{'Log Train Loss':<15}{'Log Val Loss':<15}{'Log SSIM':<15}"
+                f"{'Epoch':<10}{'Train Loss':<15}{'Val Loss':<15}{'Val SSIM':<15}{'Log Train Loss':<15}{'Log Val Loss':<15}"
             )
 
         # Тренировочный цикл
@@ -59,10 +59,9 @@ def train_model(train_loader, val_loader, model, criterion, optimizer, device):
 
             log_epoch_loss = np.log(epoch_loss) if epoch_loss > 0 else float("-inf")  # Проверка на 0
             log_val_loss = np.log(val_loss) if val_loss > 0 else float("-inf")  # Проверка на 0
-            log_val_score = np.log(val_score) if val_score > 0 else float("-inf")  # Проверка на 0
 
             print(
-                f"{epoch+1:3}/{CFG.EPOCHS:<5}   {epoch_loss:<15.4f}{val_loss:<15.4f}{val_score:<15.4f}{log_epoch_loss:<15.4f}{log_val_loss:<15.4f}{log_val_score:<15.4f}"
+                f"{epoch+1:3}/{CFG.EPOCHS:<5}   {epoch_loss:<15.4f}{val_loss:<15.4f}{val_score:<15.4f}{log_epoch_loss:<15.4f}{log_val_loss:<15.4f}"
             )
 
     return train_losses, val_losses, val_ssim_scores
