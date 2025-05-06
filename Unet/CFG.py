@@ -35,5 +35,5 @@ class CFG:
     USE_MULTIGPU = True
     BATCH_SIZE = 16
     NUM_WORKERS = 2
-    LEARNING_RATE = 1e-2
-    EPOCHS = 10
+    LEARNING_RATE = 1e-2 * 0.5
+    EPOCHS = 50

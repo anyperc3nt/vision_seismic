@@ -72,11 +72,11 @@ def visualize(*arrays_with_flags, vmin=1e-4, vmax=1, title=None, dpi=80, use_log
 
             if flag == "seismogram":
                 img = make_seism_human_readable(img)
-                axes[row, col].imshow(img)
+                axes[row, col].imshow(img, extent=[0, 500, 0, 250])
             elif flag in ["target", "predict"]:
                 # Если флаг use_log_norm активирован, применяем LogNorm
                 norm = LogNorm(vmin=vmin, vmax=vmax) if use_log_norm else None
-                axes[row, col].imshow(img[:, :, 0], norm=norm)
+                axes[row, col].imshow(img[:, :, 0], extent=[0, 500, 0, 250], norm=norm)
             else:
                 raise ValueError(f"Неизвестный флаг: {flag}")
 
@@ -91,8 +91,8 @@ def visualize(*arrays_with_flags, vmin=1e-4, vmax=1, title=None, dpi=80, use_log
             axes[row, col].axis("off")
 
     if title:
-        fig.suptitle(title, fontsize=16)
-        plt.subplots_adjust(top=0.95)
+        plt.subplots_adjust(top=0.85)
+        fig.suptitle(title, fontsize=16, x=0.5, y=0.95)
 
     plt.tight_layout()
     plt.show()
