@@ -7,7 +7,8 @@ images/
 
 
 #===Unet===
-
+lightning_logs/
+img_logs/
 testing_utils.py
 
 #===python staff===

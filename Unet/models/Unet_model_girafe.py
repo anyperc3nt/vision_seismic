@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from CFG import CFG
 
 
-# your code here
 class ConvBlock(nn.Module):
     def __init__(
         self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, output_padding=1, transpose=False
@@ -109,17 +107,14 @@ class UNetDecoder(nn.Module):
 class UNet_girafe(nn.Module):
     def __init__(
         self,
-        in_channels=3 * CFG.CHANNEL_DELIMITER,
-        num_classes=3,
+        in_channels,
+        num_classes,
         hidden_channels=None,
-        target_size=(CFG.seism_y_size, CFG.seism_x_size // CFG.CHANNEL_DELIMITER),
     ):
         super().__init__()
 
-        self.target_size = target_size
-
         if hidden_channels is None:
-            hidden_channels = [4, 16, 32, 64, 128]
+            hidden_channels = [8, 32, 64, 128, 256]
 
         out_channels = hidden_channels[0]
         self.input_convs = nn.Sequential(
@@ -138,9 +133,6 @@ class UNet_girafe(nn.Module):
         x = self.input_convs(x)
         encoder_outputs = self.encoder(x)
         x = self.decoder(encoder_outputs)
-
-        if self.target_size:
-            x = F.interpolate(x, size=self.target_size, mode="bilinear", align_corners=False)
 
         x = self.to_mask(x)
         return self.activation(x)
