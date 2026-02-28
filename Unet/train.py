@@ -10,21 +10,23 @@ from data_pipeline.path_utils import generate_lists_split, load_fault_paths, loa
 from data_pipeline.torch_dataloader import SeismicDataModule
 from fault_losses_and_metrics import *
 from geo_losses import *
-from models.Unet_model_girafe import UNet_girafe
-from models.Unet_R2SE import UNet_R2SE
-from pytorch_lightning.loggers import CSVLogger
 
-# os.environ["CLEARML_CONFIG_FILE"] = "<path to your .clearml.conf>"
-# from clearml import Logger, Task
+# from models.UNetR2SE_AGSelf import UNetR2SE_AGSelf
+# from models.UNetR2SE_stride import UNetR2SE_stride
+# from models.UNetR2SE_ContextSkip import UNetR2SE_ContextSkip
+# from models.UNetR2SE_DeformableSkip import UNetR2SE_DeformableSkip
+# from models.UNetR2SE_new import UNetR2SE
+from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
+from pytorch_lightning.loggers import CSVLogger
 
 
 class SeismicLightningModel(pl.LightningModule):
     def __init__(self, model, lr, criterion, metrics: list):
         super().__init__()
-        self.model = model
         self.lr = lr
         self.criterion = criterion
         self.metrics = nn.ModuleList(metrics)
+        self.model = model
 
     def forward(self, x):
         return self.model(x)
@@ -57,9 +59,12 @@ class CFG:
     "geomodel+faults" -> out channels: 3x geomodel, 1x faults map
     "faults" -> 1x faults map
     """
-    faults = False
+    faults = True
     geomodels = True
     out_channels = 3 * geomodels + 1 * faults
+
+    # fault_distance = 6
+    fault_distance = 3
 
     # Переменные отвечающие за тип подхода
     """
@@ -67,11 +72,12 @@ class CFG:
     "vs"  # используем только компоненту vs -> 3 канала
     "vp+vs"  # подаем и vs и vp -> 6 каналов
     """
-    channel_tag = "vp"
+    channel_tag = "vp+vs"
 
     # параметры трейна
-    lr = 1e-2 * 0.3
-    num_epochs = 50
+    lr = 1e-3
+    num_epochs = 65
+    # num_epochs = 7
     batch_size = 4
 
     """логика, вычисляющая параметры для модели"""
@@ -84,8 +90,9 @@ def main():
     torch.set_float32_matmul_precision("medium")  # Оптимизация matmul для Tensor Cores
 
     """подготовка датасета"""
-    # BASE_PATH = "/home/nik/dataset_faults/faults_sus"
-    BASE_PATH = "/home/nik/dataset_04_24/anomaly_hard"
+    # BASE_PATH = "/home/nik/dataset_faults/512/faults_a_v3"
+    # BASE_PATH = "/home/nik/dataset_faults/512/faults_b_v2"
+    BASE_PATH = "/home/nik/dataset_faults/512/faults_c"
 
     seism_paths = load_seism_paths(BASE_PATH)
     model_paths = load_model_paths(BASE_PATH)
@@ -93,7 +100,7 @@ def main():
     if CFG.faults:
         fault_paths = load_fault_paths(BASE_PATH)
 
-    cache_dataset = NpyBuilder(BASE_PATH, seism_paths, model_paths, fault_paths, force=False)
+    _cache_dataset = NpyBuilder(BASE_PATH, seism_paths, model_paths, fault_paths, force=False)
 
     train_list, val_list = generate_lists_split(BASE_PATH)
     data_module = SeismicDataModule(
@@ -106,41 +113,64 @@ def main():
         num_workers=4,
     )
     """инициализация модели, лосса, метрик"""
-    # model = UNet_girafe(in_channels=3 * CFG.in_channel_multiplier, num_classes=CFG.out_channels)
-    model = UNet_R2SE(in_channels=3 * CFG.in_channel_multiplier, num_classes=CFG.out_channels)
+    model = UNetR2SE(in_channels=3 * CFG.in_channel_multiplier, num_classes=CFG.out_channels, faults=CFG.faults)
 
-    criterion = CombinedMSETverskyLoss(mse_weight=0.15, tversky_alpha=0.9, tversky_beta=0.1)
-    criterion = nn.MSELoss()
+    criterion = LossCombinator(
+        losses=[nn.MSELoss(), FocalLoss(alpha=0.75, gamma=2)],
+        channels=[[0, 3], [3, 4]],
+        weights=[0.5, 0.5],
+        flatten_channels=[False, True],
+    )
 
-    # faults
-    # lightning_model = SeismicLightningModel(
-    #     model, lr=CFG.lr, criterion=criterion, metrics=[SSIM3Channels(), FaultIoU(channel=3)]
-    # )
-    # anomalies
-    lightning_model = SeismicLightningModel(model, lr=CFG.lr, criterion=criterion, metrics=[SSIM3Channels()])
+    lightning_model = SeismicLightningModel(
+        model,
+        lr=CFG.lr,
+        criterion=criterion,
+        metrics=[SSIM3Channels(), FaultIoU(channel=3)],
+    )
 
-    """clearml"""
-    # task = Task.init(
-    #     project_name='vision-seismic',
-    #     task_name='testing pytorch lightning',
-    #     tags=['Unet', 'Faults']
-    # )
     """инициализация трейна"""
+    comment = "тест_С"
+
     model_name = model.__class__.__name__
-    loss_name = criterion.__class__.__name__
-    now = datetime.now().strftime("%m%d_%H%M%S")
-    dir_name = f"{now}_{model_name}_{loss_name}_epoch{CFG.num_epochs}"
-    logger = CSVLogger(save_dir="lightning_logs", name=dir_name)
+    loss_name = str(criterion)
+    dataset_name = os.path.basename(BASE_PATH)
+    now = datetime.now().strftime("%Y-%m-%d_at_%H-%M-%S")
+    dir_name = f"{now}_{comment}_ep{CFG.num_epochs}"
+    logger = CSVLogger(save_dir=f"lightning_logs/{dataset_name}/{loss_name}", name=model_name, version=dir_name)
+
+    checkpoint_best_iou = ModelCheckpoint(
+        monitor="val_metric_FaultIoU",
+        mode="max",
+        save_top_k=1,
+        filename="best_iou-epoch={epoch:02d}-iou={val_metric_FaultIoU:.4f}",
+        dirpath=logger.log_dir,
+        auto_insert_metric_name=False,
+    )
+
+    # 2. Колбек для сохранения модели с наименьшим val_loss
+    checkpoint_best_loss = ModelCheckpoint(
+        monitor="val_loss",
+        mode="min",
+        save_top_k=1,
+        filename="best_loss-epoch={epoch:02d}-loss={val_loss:.4f}",
+        dirpath=logger.log_dir,
+        auto_insert_metric_name=False,
+    )
 
     trainer = pl.Trainer(
-        logger=logger,
+        logger=logger, 
         callbacks=[
+            checkpoint_best_iou,
+            checkpoint_best_loss,
             GlobalEpochProgressBar(),
-            RenameLogDirOnExceptionCallback(min_epoch=15),
-            PlottingCallback(silent=False),
-            SamplePredictionCallback(silent=False),
+            RenameLogDirOnExceptionCallback(dir_name, min_epoch=10),
+            PlottingCallback(plot_name=f"{dataset_name} {model_name}", silent=True),
+            # SamplePredictionCallback(n_val=5, n_final=15, silent=False),
+            # PRPlotCallback(channel=3),
             DictLoggerCallback(CFG),
             DictLoggerCallback({"BASE_PATH": BASE_PATH}),
+            DictLoggerCallback({"model_class_name": model.__class__.__name__}),
             LogReprCallback({"loss": criterion}),
         ],
         num_sanity_val_steps=0,
